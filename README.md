@@ -210,28 +210,6 @@ jj_circuit = [("B1", "1", "0", "100e-6")]  # 100 μA critical current
 nl_circuit = [("NL1", "1", "0", "poly 329e-12, 0.0, 0.5, 0.0, 0.0")]
 ```
 
-## Complete Example: TWPA Simulation
-
-```julia
-using JosephsonCircuits
-using Plots
-
-# Generate a netlist for a TWPA (example)
-netlist = generate_twpa_netlist()  # Your netlist generation function
-
-# Parse circuit
-circuit = JosephsonCircuits.parseinputfile(netlist)
-
-# Setup sources
-sources = [(mode=(1,), port=1, current=1e-6)]  # 1 μA pump
-
-# Run harmonic balance
-solution = hbsolve(circuit, sources, freq=8e9, Nharmonics=10)
-
-# Extract S-parameters
-S = JosephsonCircuits.sparams(solution)
-```
-
 # References
 
 [1-6] See original JosephsonCircuits.jl documentation for references
