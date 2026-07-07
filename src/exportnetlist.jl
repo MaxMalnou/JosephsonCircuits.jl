@@ -54,7 +54,7 @@ Import the netlist from the IOBuffer or IOStream `io` and return a vector of
 tuples representing the circuit.
 """
 function import_netlist(filename)
-    circuit = Tuple{String,String,String,Num}[]
+    circuit = Tuple{String,String,String,Any}[]
     open(filename, "r") do io
         import_netlist!(io, circuit)
     end
@@ -69,27 +69,51 @@ Import the netlist from the IOBuffer or IOStream `io` to the vector of tuples
 
 # Examples
 ```jldoctest
-julia> io = IOBuffer();circuit1=[("P","1","0",1),("R","1","0",50.0)];JosephsonCircuits.export_netlist!(io,circuit1,Dict());circuit2 = Tuple{String,String,String,Num}[];JosephsonCircuits.import_netlist!(io,circuit2);circuit2
-2-element Vector{Tuple{String, String, String, Num}}:
+julia> io = IOBuffer();circuit1=[("P","1","0",1),("R","1","0",50.0),("NL","1","2", "poly 1e-9, 0, 0.5, 0, 0")];JosephsonCircuits.export_netlist!(io,circuit1,Dict());circuit2 = Tuple{String,String,String,Any}[];JosephsonCircuits.import_netlist!(io,circuit2);circuit2
+2-element Vector{Tuple{String, String, String, Any}}:
  ("P", "1", "0", 1.0)
  ("R", "1", "0", 50.0)
+ ("NL", "1", "2", "poly 1e-9, 0, 0.5, 0, 0")
 ```
 """
 function import_netlist!(io::IO, circuit::AbstractVector)
     seekstart(io)
     for line in eachline(io)
-        split_line = split(strip(line),r"\s+")
-        if length(split_line) != 4
-            error("each line should have component name, node1, node2, component value")
+
+        # skip empty lines
+        isempty(line) && continue
+        # skip comments
+        startswith(line, "*") && continue
+
+        split_line = split(strip(line), r"\s+")
+
+        # Elements with 4 fields: name, node1, node2, value
+        if length(split_line) == 4
+            value = try
+                parse(Float64, split_line[4])
+            catch
+                # https://docs.sciml.ai/Symbolics/stable/manual/parsing/
+                JosephsonCircuits.Symbolics.parse_expr_to_symbolic(
+                    Meta.parse(split_line[4]), @__MODULE__)
+            end
+
+            push!(circuit, (split_line[1], split_line[2], split_line[3], value))
+
+            # Nonlinear inductance: NLname node1 node2 poly L0 c1 c2 c3 c4
+        elseif startswith(split_line[1], "NL")
+            if length(split_line) != 9
+                error("NL element should have format:\n" *
+                      "NLname node1 node2 poly L0 c1 c2 c3 c4")
+            end
+            split_line[4] == "poly" ||
+                error("Only 'poly' nonlinear inductors are supported.")
+            # Everything after node2 becomes the value field as below
+            # "poly L0, c1, c2, c3, c4"
+            value = join(split_line[4:5], " ") * ", " * join(split_line[6:end], ", ")
+            push!(circuit, (split_line[1], split_line[2], split_line[3], value))
+        else
+            error("Unsupported netlist line:\n$line")
         end
-        value = try
-            parse(Float64,split_line[4])
-        catch
-            # https://docs.sciml.ai/Symbolics/stable/manual/parsing/
-            # JosephsonCircuits.Symbolics.parse_expr_to_symbolic(Meta.parse(split_line[4]),Main)
-            JosephsonCircuits.Symbolics.parse_expr_to_symbolic(Meta.parse(split_line[4]),@__MODULE__)
-        end
-        push!(circuit,(split_line[1],split_line[2],split_line[3],value))
     end
     return nothing
 end
