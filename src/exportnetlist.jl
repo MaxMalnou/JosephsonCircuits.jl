@@ -109,7 +109,7 @@ function import_netlist!(io::IO, circuit::AbstractVector)
                 error("Only 'poly' nonlinear inductors are supported.")
             # Everything after node2 becomes the value field as below
             # "poly L0, c1, c2, c3, c4"
-            value = join(split_line[4:5], " ") * ", " * join(split_line[5:end], ", ")
+            value = join(split_line[4:5], " ") * ", " * join(split_line[6:end], ", ")
             push!(circuit, (split_line[1], split_line[2], split_line[3], value))
         else
             error("Unsupported netlist line:\n$line")
